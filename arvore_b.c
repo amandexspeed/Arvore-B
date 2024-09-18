@@ -216,6 +216,30 @@ int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome
 
 int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
 {
-  // TODO: Inserir aqui o codigo do algoritmo de remocao
-  return INT_MAX;
+  int pont;
+  int encontrou = 0;
+  int i = busca(cod_cli, nome_arquivo_metadados, nome_arquivo_dados, &pont, &encontrou);
+  FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
+  fseek(arqDados, pont, SEEK_SET);
+  No *no = le_no(arqDados);
+
+  if (eh_folha(no))
+  {
+    while (i < no->m)
+    {
+      if (no->clientes[i] != NULL)
+        no->clientes[i] = no->clientes[i + 1];
+      i++;
+    }
+    no->clientes[i] = NULL;
+    no->m--;
+  }
+
+  // Reposiciona o ponteiro antes de salvar
+  fseek(arqDados, pont, SEEK_SET);
+  salva_no(no, arqDados);
+
+  fclose(arqDados); // Fecha o arquivo após salvar
+
+  return pont;
 }
