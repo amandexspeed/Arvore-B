@@ -218,26 +218,68 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
 {
   int pont;
   int encontrou = 0;
+
+  // Busca a chave no arquivo de dados
   int i = busca(cod_cli, nome_arquivo_metadados, nome_arquivo_dados, &pont, &encontrou);
+
   FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
   fseek(arqDados, pont, SEEK_SET);
   No *no = le_no(arqDados);
 
-  if (eh_folha(no))
+  if (encontrou && no != NULL)
   {
-    while (i < no->m)
+    if (eh_folha(no))
     {
-      if (no->clientes[i] != NULL)
+      // Caso 1: A chave está em um nó folha, remove diretamente
+      while (i < no->m - 1)
+      {
         no->clientes[i] = no->clientes[i + 1];
-      i++;
+        i++;
+      }
+      no->clientes[no->m - 1] = NULL; // Remove a última chave
+      no->m--;                        // Decrementa o número de chaves no nó
     }
-    no->clientes[i] = NULL;
-    no->m--;
-  }
+    else
+    {
+      // Caso 2: A chave não está em um nó folha
+      // Substitui pela chave sucessora
+      int sucessor_pont = no->p[i + 1]; // Pega o ponteiro para o nó à direita da chave
+      fseek(arqDados, sucessor_pont, SEEK_SET);
+      No *no_sucessor = le_no(arqDados);
 
-  // Reposiciona o ponteiro antes de salvar
-  fseek(arqDados, pont, SEEK_SET);
-  salva_no(no, arqDados);
+      while (!eh_folha(no_sucessor))
+      {
+        // Desce até encontrar um nó folha
+        sucessor_pont = no_sucessor->p[0]; // Vai para o primeiro ponteiro
+        fseek(arqDados, sucessor_pont, SEEK_SET);
+        no_sucessor = le_no(arqDados);
+      }
+
+      // Substitui a chave removida pela chave sucessora
+      no->clientes[i] = no_sucessor->clientes[0];
+
+      // Remove a chave sucessora do nó folha
+      for (int j = 0; j < no_sucessor->m - 1; j++)
+      {
+        no_sucessor->clientes[j] = no_sucessor->clientes[j + 1];
+      }
+      no_sucessor->clientes[no_sucessor->m - 1] = NULL;
+      no_sucessor->m--;
+
+      // Reposiciona o ponteiro e salva o nó sucessor atualizado
+      fseek(arqDados, sucessor_pont, SEEK_SET);
+      salva_no(no_sucessor, arqDados);
+
+      // Libera a memória do nó sucessor
+      libera_no(no_sucessor);
+    }
+
+    // Reposiciona o ponteiro antes de salvar o nó modificado
+    fseek(arqDados, pont, SEEK_SET);
+    salva_no(no, arqDados);
+
+    libera_no(no);
+  }
 
   fclose(arqDados); // Fecha o arquivo após salvar
 
