@@ -209,10 +209,24 @@ int busca(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados, i
 // }
 
 int esta_cheio(No * no){
-  if(no->m<(2*D)){
+  if(no->m<=(2*D)){
     return 0;
   }
   return 1;
+}
+
+
+void ordenar_no(No * no){
+  Cliente *aux;
+  for(int i = 0; i < no->m; i++){
+    for(int j = i + 1; j < no->m; j++){
+      if(no->clientes[j]->cod_cliente < no->clientes[i]->cod_cliente){
+        aux = no->clientes[j];
+        no->clientes[j] = no->clientes[i];
+        no->clientes[i] = aux;
+      }
+    }
+  }
 }
 
 
@@ -234,11 +248,13 @@ int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome
       }
       fseek(arqDados, pontChave, SEEK_SET);
       No *no = le_no(arqDados);
-
       if(!esta_cheio(no)){
-        no->clientes[i] = novo_cliente;         
+        no->clientes[no->m] = novo_cliente;
+        no->m++;
+        ordenar_no(no);
         fseek(arqDados, pontChave, SEEK_SET);
         salva_no(no, arqDados);
+        fclose(arqDados);
         return pontChave;
       }
   }
