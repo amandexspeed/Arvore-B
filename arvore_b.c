@@ -209,25 +209,12 @@ int busca(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados, i
 // }
 
 int esta_cheio(No * no){
-  for(int i=0; i<no->m; i++){
-    if(no->clientes[i]== NULL){
-      return 0;
-    }
+  if(no->m<(2*D)){
+    return 0;
   }
+  return 1;
 }
 
-void ordenar_no(No * no){
-  Cliente *aux;
-  for(int i=0; i<no->m;i++){
-    for(int j=i; j<no->m; j++){
-      if(no->clientes[j]->cod_cliente<no->clientes[i]->cod_cliente){
-            aux = no->clientes[j];
-            no->clientes[j] = no->clientes[i];
-            no->clientes[i] = aux;
-      }
-    }
-  }
-}
 
 int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
 {
@@ -237,22 +224,22 @@ int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome
 
   int i = busca(cod_cli,nome_arquivo_metadados,nome_arquivo_dados,&pontChave, &encontrou);
 
-  if(encontrou == -1){//caso o dado já exista na árvore
+  if(encontrou){//caso o dado já exista na árvore
     return -1;
   }
-  else{
+ else{
       FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
+      if(arqDados == NULL){
+          return-1;
+      }
       fseek(arqDados, pontChave, SEEK_SET);
       No *no = le_no(arqDados);
+
       if(!esta_cheio(no)){
-         for(int i=0; i<no->m; i++){
-              if(no->clientes[i]== NULL){
-                  no->clientes[i] = novo_cliente;
-             }
-          }
-          ordenar_no(no);
-          fseek(arqDados, pontChave, SEEK_SET);
-          salva_no(no, arqDados);
+        no->clientes[i] = novo_cliente;         
+        fseek(arqDados, pontChave, SEEK_SET);
+        salva_no(no, arqDados);
+        return pontChave;
       }
   }
 
