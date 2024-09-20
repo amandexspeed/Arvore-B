@@ -124,94 +124,22 @@ int busca(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados, i
   return 0;
 }
 
-// int posicao(int chave, No *no)
-// {
-//   int inicio = 0;
-//   int fim = no->m;
-//   int pos = (fim + inicio) / 2;
-//   while (pos != no->m && chave != no->p[pos] && inicio < fim)
-//   {
-//     if (chave > no->p[pos])
-//     {
-//       inicio = pos + 1;
-//     }
-//     else
-//     {
-//       fim = pos;
-//     }
-//     pos = (fim + inicio) / 2;
-//   }
-//   return pos;
-// }
-
-// int busca(No *no, int chave)
-// {
-//   int pos = posicao(chave, no);
-//   if (no->p[pos] == NULL || (pos < no->m && chave == no->p[pos]))
-//   {
-//     return no;
-//   }
-//   else
-//   {
-//     return busca(no->p[pos], chave);
-//   }
-// }
-
-// int busca(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados, int *pont, int *encontrou)
-// {
-//   FILE *metaArq = fopen(nome_arquivo_metadados, "rb");
-//   FILE *dataArq = fopen(nome_arquivo_dados, "rb");
-
-//   if (!metaArq || !dataArq)
-//   {
-//     printf("Erro ao abrir os arquivos.\n");
-//     *pont = INT_MAX;
-//     *encontrou = false;
-//     return -1;
-//   }
-
-//   Metadados meta;
-//   fread(&meta, sizeof(Metadados), 1, metaArq);
-//   int pos_no_atual = meta.pont_raiz;
-
-//   while (pos_no_atual != -1)
-//   {
-//     No *no = le_no(dataArq);
-//     int i = busca(no, cod_cli);
-//     if (i < no->m && no->clientes[i]->cod_cliente == cod_cli)
-//     {
-//       *pont = pos_no_atual;
-//       *encontrou = true;
-//       free(no);
-//       fclose(metaArq);
-//       fclose(dataArq);
-//       return 1;
-//     }
-//     else if (no->p[i] == -1)
-//     {
-//       *pont = pos_no_atual;
-//       *encontrou = false;
-//       free(no);
-//       fclose(metaArq);
-//       fclose(dataArq);
-//       return 0;
-//     }
-//     else
-//     {
-//       pos_no_atual = no->p[i];
-//     }
-//     free(no);
-//   }
-
-//   *pont = INT_MAX;
-//   *encontrou = false;
-//   return 0;
-// }
-
 int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
 {
   // TODO: Inserir aqui o codigo do algoritmo de insercao
   return INT_MAX;
+}
+
+void removeNoFolha(FILE *arqDados, No *no, int i, int pont)
+{
+  // Caso 1: A chave está em um nó folha, remove diretamente
+  free(no->clientes[i]);
+  for (int j = i; j < no->m - 1; j++)
+    no->clientes[j] = no->clientes[j + 1];
+  no->clientes[no->m - 1] = NULL; // Remove a última chave
+  no->m--;                        // Decrementa o número de chaves no nó
+  fseek(arqDados, pont, SEEK_SET);
+  salva_no(no, arqDados);
 }
 
 int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
@@ -230,14 +158,7 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
   {
     if (eh_folha(no))
     {
-      // Caso 1: A chave está em um nó folha, remove diretamente
-      while (i < no->m - 1)
-      {
-        no->clientes[i] = no->clientes[i + 1];
-        i++;
-      }
-      no->clientes[no->m - 1] = NULL; // Remove a última chave
-      no->m--;                        // Decrementa o número de chaves no nó
+      removeNoFolha(arqDados, no, i, pont);
     }
     else
     {
@@ -273,46 +194,45 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
       // Libera a memória do nó sucessor
       libera_no(no_sucessor);
     }
-
-    // Reposiciona o ponteiro antes de salvar o nó modificado
-    fseek(arqDados, pont, SEEK_SET);
-    salva_no(no, arqDados);
-
-    libera_no(no);
-  }
-
-  Metadados *mDados = le_arq_metadados(nome_arquivo_metadados);
-  if (mDados->pont_prox_no_livre < pont + tamanho_no())
-  {
-    fseek(arqDados, pont + tamanho_no(), SEEK_SET);
+    fseek(arqDados, no->p[i], SEEK_SET);
+    no = le_no(arqDados);
+    fseek(arqDados, no->p[i + 1], SEEK_SET);
     No *noIrmao = le_no(arqDados);
-    if (no->m + noIrmao->m >= 2 * D)
+    if (no->m + noIrmao->m >= 2 * D && no->m < D && noIrmao != NULL)
     {
       // redistribuir
       fseek(arqDados, no->pont_pai, SEEK_SET);
       No *noPai = le_no(arqDados);
+      int idxPai = -1;
+      // pega o índice do pai comparando o filho que ele aponta com o pont encontrado
+      for (int j = 0; j < noPai->m; j++)
+        if (noPai->p[j] == pont)
+        {
+          idxPai = j;
+          break;
+        }
+      // vetor de clientes de tamanho no + irmao + 1 (pai)
       Cliente *aux[no->m + noIrmao->m + 1];
+      // contador para salvar todos os clientes em aux
       int k = 0;
       while (k < no->m)
       {
         aux[k] = no->clientes[k];
         k++;
       }
+      // contador auxiliar para contar os M elementos do irmao
       int l = 0;
-      while (k < noIrmao->m)
+      while (k < noIrmao->m + 1)
       {
         aux[k] = noIrmao->clientes[l];
         k++;
         l++;
       }
-      int j = 0;
-      while (j < noPai->m)
-      {
-        if (noPai->p[j] == no[i].pont_pai)
-          aux[k] = noPai->clientes[j];
-        j++;
-      }
-      j = no->m + noIrmao->m + 1;
+      // na última posição do vetor se guarda o cliente do pai
+      aux[k] = noPai->clientes[idxPai];
+
+      int j = no->m + noIrmao->m + 1;
+      // ordena vetor auxiliar (insertion sort)
       while (j > 0 && aux[j]->cod_cliente < aux[j - 1]->cod_cliente)
       {
         Cliente *temp = aux[j];
@@ -320,8 +240,64 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
         aux[j - 1] = temp;
         j--;
       }
-      // TODO: guardar D chaves no pont, D+1 no pai, e o restante no irmão e testar se funciona. :'(
+      for (int a = 0; a < k; a++)
+        imprime_cliente(aux[a]);
+      // redistribuir as chaves
+      // D chaves no nó
+      int cont = 0;
+      for (int a = 0; a < D; a++)
+      {
+        no->clientes[a] = aux[cont];
+        no->m = a + 1;
+        cont++;
+      }
+      // D + 1 vai para o pai
+      noPai->clientes[idxPai] = aux[cont];
+      // restante para o irmão
+      int contM = 0;
+      for (int a = 0; a < k - D; a++)
+      {
+        noIrmao->clientes[a] = aux[cont++];
+        contM++;
+      }
+      noIrmao->m = contM;
+
+      // salva novo no pai e novo no irmao
+      fseek(arqDados, no->pont_pai, SEEK_SET);
+      salva_no(noPai, arqDados);
+      libera_no(noPai);
+      fseek(arqDados, no->p[i + 1], SEEK_SET);
+      salva_no(noIrmao, arqDados);
+      libera_no(noIrmao);
     }
+    // Reposiciona o ponteiro antes de salvar o nó modificado
+    fseek(arqDados, pont, SEEK_SET);
+    salva_no(no, arqDados);
+
+    printf("Noh com elemento excluido\n");
+    fseek(arqDados, pont, SEEK_SET);
+    imprime_no(no);
+    if (no->pont_pai != -1)
+    {
+      fseek(arqDados, no->pont_pai, SEEK_SET);
+      No *noPai = le_no(arqDados);
+      // fseek(arqDados, no->p[i + 1], SEEK_SET);
+      // No *noIrmao = le_no(arqDados);
+      int idxPai = -1;
+      printf("Noh pai do com elemento excluido\n");
+      imprime_no(noPai);
+      // printf("Noh irmao do com elemento excluido\n");
+      // imprime_no(noIrmao);
+      for (int j = 0; j < noPai->m; j++)
+        if (noPai->p[j] == pont)
+        {
+          idxPai = j;
+          break;
+        }
+      printf("Indice do elemento pai do noh: %d\n", idxPai);
+    }
+
+    libera_no(no);
   }
 
   fclose(arqDados); // Fecha o arquivo após salvar

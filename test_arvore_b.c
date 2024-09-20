@@ -633,7 +633,7 @@ if (!skip)
                                         cliente(35, "Marcela"),
                                         cliente(37, "Leonardo")));
   ListaNos *tabDadosSaida = le_nos(NOME_ARQUIVO_DADOS);
-  imprime_nos(tabDadosSaida);
+  // imprime_nos(tabDadosSaida);
 
   ASSERT_EQUAL_CMP(tabDados, tabDadosSaida, cmp_nos);
   libera_nos(tabDados);
