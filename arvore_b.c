@@ -281,6 +281,49 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
     libera_no(no);
   }
 
+  Metadados *mDados = le_arq_metadados(nome_arquivo_metadados);
+  if (mDados->pont_prox_no_livre < pont + tamanho_no())
+  {
+    fseek(arqDados, pont + tamanho_no(), SEEK_SET);
+    No *noIrmao = le_no(arqDados);
+    if (no->m + noIrmao->m >= 2 * D)
+    {
+      // redistribuir
+      fseek(arqDados, no->pont_pai, SEEK_SET);
+      No *noPai = le_no(arqDados);
+      Cliente *aux[no->m + noIrmao->m + 1];
+      int k = 0;
+      while (k < no->m)
+      {
+        aux[k] = no->clientes[k];
+        k++;
+      }
+      int l = 0;
+      while (k < noIrmao->m)
+      {
+        aux[k] = noIrmao->clientes[l];
+        k++;
+        l++;
+      }
+      int j = 0;
+      while (j < noPai->m)
+      {
+        if (noPai->p[j] == no[i].pont_pai)
+          aux[k] = noPai->clientes[j];
+        j++;
+      }
+      j = no->m + noIrmao->m + 1;
+      while (j > 0 && aux[j]->cod_cliente < aux[j - 1]->cod_cliente)
+      {
+        Cliente *temp = aux[j];
+        aux[j] = aux[j - 1];
+        aux[j - 1] = temp;
+        j--;
+      }
+      // TODO: guardar D chaves no pont, D+1 no pai, e o restante no irmão e testar se funciona. :'(
+    }
+  }
+
   fclose(arqDados); // Fecha o arquivo após salvar
 
   return pont;
