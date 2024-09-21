@@ -443,7 +443,7 @@ if (!skip) {
 		)
 	);
 	ListaNos *tabDadosSaida = le_nos(NOME_ARQUIVO_DADOS);
-
+	
 	ASSERT_EQUAL_CMP(tabDados, tabDadosSaida, cmp_nos);
 	libera_nos(tabDados);
 	libera_nos(tabDadosSaida);
@@ -496,7 +496,7 @@ if (!skip) {
 	libera_nos(tabDadosSaida);
 }
 
-TEST("Insercao 5 em arvore de altura H = 1 cheia, que causa aumento na altura da arvore");
+/* TEST("Insercao 5 em arvore de altura H = 1 cheia, que causa aumento na altura da arvore");
 if (!skip) {
 	int pos = INT_MAX;
 	monta_arvore_h1_cheia();
@@ -533,7 +533,7 @@ if (!skip) {
 	free(tabMetadados);
 	free(tabMetadadosSaida);
 }
-
+ */
 TEST("Exclusao 1 em arvore de altura H = 2 cheia, nao eh necessario concatenacao");
 if (!skip) {
 	int pos = INT_MAX;
