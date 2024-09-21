@@ -19,7 +19,12 @@ void removeNoFolha(FILE *arqDados, No *no, int i, int pont);
 // Caso nó intermediário, remove e substitui pelo maior sucessor imediato
 void substituiPorSucessor(FILE *arq, No *no, int index);
 // Redistribui os nós se necessário
-void redistribuirNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont);
+void redistribuirNos(FILE *arqDados, No *noExc, No *noIrmao, No *noPai, int idxPai, int pont);
+// Ordena vetor de clientes
+void insertionSort(Cliente **aux, int tamanho);
+void balancearArvore(FILE *arqDados, No *noExc, int pont);
+void concatenarNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont);
+int encontrarIndicePai(No *pai, int pont);
 
 int eh_folha(No *no)
 {
@@ -175,6 +180,22 @@ void substituiPorSucessor(FILE *arq, No *no, int index)
   libera_no(no_sucessor);
 }
 
+void insertionSort(Cliente **aux, int tamanho)
+{
+  // ordena vetor auxiliar (insertion sort)
+  for (int i = 1; i <= tamanho; i++)
+  {
+    Cliente *temp = aux[i];
+    int j = i - 1;
+    while (j >= 0 && aux[j]->cod_cliente > temp->cod_cliente)
+    {
+      aux[j + 1] = aux[j];
+      j--;
+    }
+    aux[j + 1] = temp;
+  }
+}
+
 void redistribuirNos(FILE *arqDados, No *noExc, No *noIrmao, No *noPai, int idxPai, int pont)
 {
   // vetor de clientes de tamanho no + irmao + 1 (pai)
@@ -197,18 +218,7 @@ void redistribuirNos(FILE *arqDados, No *noExc, No *noIrmao, No *noPai, int idxP
   // na última posição do vetor se guarda o cliente do pai
   aux[k] = cliente(noPai->clientes[idxPai]->cod_cliente, noPai->clientes[idxPai]->nome);
 
-  // ordena vetor auxiliar (insertion sort)
-  for (int i = 1; i <= k; i++)
-  {
-    Cliente *temp = aux[i];
-    int j = i - 1;
-    while (j >= 0 && aux[j]->cod_cliente > temp->cod_cliente)
-    {
-      aux[j + 1] = aux[j];
-      j--;
-    }
-    aux[j + 1] = temp;
-  }
+  insertionSort(aux, k);
   // redistribuir as chaves
   // D chaves no nó
   int cont = 0;
@@ -238,10 +248,88 @@ void redistribuirNos(FILE *arqDados, No *noExc, No *noIrmao, No *noPai, int idxP
   salva_no(noIrmao, arqDados);
 }
 
+void balancearArvore(FILE *arqDados, No *noExc, int pont)
+{
+  // checa se é necessário balancear
+  if (noExc->m >= D || noExc->pont_pai == -1)
+  {
+    return; // Nó tem no mínimo D elementos ou é raiz, não precisa balancear
+  }
+  fseek(arqDados, pont + tamanho_no(), SEEK_SET);
+  No *noIrmao = le_no(arqDados);
+
+  if (noExc->pont_pai == noIrmao->pont_pai && noExc->m < D && noIrmao != NULL)
+  {
+    fseek(arqDados, noExc->pont_pai, SEEK_SET);
+    No *noPai = le_no(arqDados);
+    int idxPai = encontrarIndicePai(noPai, pont);
+
+    if (noExc->m + noIrmao->m >= 2 * D)
+    {
+      redistribuirNos(arqDados, noExc, noIrmao, noPai, idxPai, pont);
+    }
+    else
+    {
+      concatenarNos(arqDados, noExc, noIrmao, noPai, idxPai, pont);
+      balancearArvore(arqDados, noPai, noExc->pont_pai);
+    }
+
+    libera_no(noPai);
+  }
+
+  if (noIrmao)
+    libera_no(noIrmao);
+}
+
+void concatenarNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont)
+{
+  for (int i = 0; i < irmao->m; i++)
+  {
+    no->clientes[no->m + i] = cliente(irmao->clientes[i]->cod_cliente, irmao->clientes[i]->nome);
+    no->p[no->m + i] = irmao->p[i];
+  }
+  no->m += irmao->m;
+
+  if (no->m == 2 * D)
+    libera_no(irmao);
+
+  no->clientes[no->m] = cliente(pai->clientes[idxPai]->cod_cliente, pai->clientes[idxPai]->nome);
+  no->m++;
+
+  int contaMnoPai = 0;
+  for (int a = idxPai; a < pai->m + 1; a++)
+  {
+    pai->clientes[a] = pai->clientes[a + 1];
+    if (pont != pai->p[a])
+    {
+      pai->p[a] = pai->p[a + 1];
+    }
+    if (pai->clientes[a] != NULL)
+      contaMnoPai++;
+  }
+  pai->m = contaMnoPai;
+
+  insertionSort(no->clientes, no->m - 1);
+
+  fseek(arq, no->pont_pai, SEEK_SET);
+  salva_no(pai, arq);
+}
+
+int encontrarIndicePai(No *pai, int pont)
+{
+  for (int j = 0; j < pai->m; j++)
+  {
+    if (pai->p[j] == pont)
+    {
+      return j;
+    }
+  }
+  return -1;
+}
+
 int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
 {
   int pont, encontrou = 0;
-  // Busca a chave no arquivo de dados
   int i = busca(cod_cli, nome_arquivo_metadados, nome_arquivo_dados, &pont, &encontrou);
 
   FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
@@ -262,41 +350,16 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
     }
     else
     {
-      // Caso 2: A chave não está em um nó folha
-      // Substitui pela chave sucessora
       substituiPorSucessor(arqDados, noExc, i);
     }
 
-    // Reposiciona o ponteiro antes de salvar o nó modificado
-    fseek(arqDados, pont, SEEK_SET);
-    salva_no(noExc, arqDados);
+    balancearArvore(arqDados, noExc, pont);
 
-    fseek(arqDados, pont + tamanho_no(), SEEK_SET);
-    No *noIrmao = le_no(arqDados);
-    if (noExc->m + noIrmao->m >= 2 * D && noExc->m < D && noIrmao != NULL)
-    {
-      // redistribuir
-      fseek(arqDados, noExc->pont_pai, SEEK_SET);
-      No *noPai = le_no(arqDados);
-      int idxPai = -1;
-
-      // pega o índice do pai comparando o filho que ele aponta com o pont encontrado
-      for (int j = 0; j < noPai->m; j++)
-        if (noPai->p[j] == pont)
-        {
-          idxPai = j;
-          break;
-        }
-      redistribuirNos(arqDados, noExc, noIrmao, noPai, idxPai, pont);
-      libera_no(noPai);
-      libera_no(noIrmao);
-    }
-    // Reposiciona o ponteiro antes de salvar o nó modificado
     fseek(arqDados, pont, SEEK_SET);
     salva_no(noExc, arqDados);
     libera_no(noExc);
   }
 
-  fclose(arqDados); // Fecha o arquivo após salvar
+  fclose(arqDados);
   return pont;
 }
