@@ -14,6 +14,12 @@
 int eh_folha(No *no);
 // Busca binária em um nó
 int busca_binaria_no(No *no, int cod_cli, int *encontrou);
+// Caso nó esteja na folha, remove
+void removeNoFolha(FILE *arqDados, No *no, int i, int pont);
+// Caso nó intermediário, remove e substitui pelo maior sucessor imediato
+void substituiPorSucessor(FILE *arq, No *no, int index);
+// Redistribui os nós se necessário
+void redistribuirNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont);
 
 int eh_folha(No *no)
 {
@@ -144,19 +150,107 @@ void removeNoFolha(FILE *arqDados, No *no, int i, int pont)
   salva_no(no, arqDados);
 }
 
-void sai()
+void substituiPorSucessor(FILE *arq, No *no, int index)
 {
-  exit(1);
+  int sucessor_pont = no->p[index + 1];
+  No *no_sucessor = NULL;
+
+  do
+  {
+    fseek(arq, sucessor_pont, SEEK_SET);
+    if (no_sucessor)
+      libera_no(no_sucessor);
+    no_sucessor = le_no(arq);
+    if (!eh_folha(no_sucessor))
+    {
+      sucessor_pont = no_sucessor->p[0];
+    }
+  } while (!eh_folha(no_sucessor));
+
+  no->clientes[index] = no_sucessor->clientes[0];
+  removeNoFolha(arq, no_sucessor, 0, sucessor_pont);
+
+  fseek(arq, sucessor_pont, SEEK_SET);
+  salva_no(no_sucessor, arq);
+  libera_no(no_sucessor);
 }
+
+void redistribuirNos(FILE *arqDados, No *noExc, No *noIrmao, No *noPai, int idxPai, int pont)
+{
+  // vetor de clientes de tamanho no + irmao + 1 (pai)
+  Cliente *aux[noExc->m + noIrmao->m + 1];
+  // contador para salvar todos os clientes em aux
+  int k = 0;
+  while (k < noExc->m)
+  {
+    aux[k] = cliente(noExc->clientes[k]->cod_cliente, noExc->clientes[k]->nome);
+    k++;
+  }
+  // contador auxiliar para contar os M elementos do irmao
+  int l = 0;
+  while (l < noIrmao->m)
+  {
+    aux[k] = cliente(noIrmao->clientes[l]->cod_cliente, noIrmao->clientes[l]->nome);
+    k++;
+    l++;
+  }
+  // na última posição do vetor se guarda o cliente do pai
+  aux[k] = cliente(noPai->clientes[idxPai]->cod_cliente, noPai->clientes[idxPai]->nome);
+
+  // ordena vetor auxiliar (insertion sort)
+  for (int i = 1; i <= k; i++)
+  {
+    Cliente *temp = aux[i];
+    int j = i - 1;
+    while (j >= 0 && aux[j]->cod_cliente > temp->cod_cliente)
+    {
+      aux[j + 1] = aux[j];
+      j--;
+    }
+    aux[j + 1] = temp;
+  }
+  // redistribuir as chaves
+  // D chaves no nó
+  int cont = 0;
+  for (int a = 0; a < D; a++)
+  {
+    noExc->clientes[a] = cliente(aux[cont]->cod_cliente, aux[cont]->nome);
+    noExc->m = a + 1;
+    cont++;
+  }
+  // D + 1 vai para o pai
+  noPai->clientes[idxPai] = cliente(aux[cont]->cod_cliente, aux[cont]->nome);
+  cont++;
+  // restante para o irmão
+  int contM = 0;
+  for (int a = 0; a < k - D; a++)
+  {
+    noIrmao->clientes[a] = cliente(aux[cont]->cod_cliente, aux[cont]->nome);
+    contM++;
+    cont++;
+  }
+  noIrmao->m = contM;
+
+  // salva novo no pai e novo no irmao
+  fseek(arqDados, noExc->pont_pai, SEEK_SET);
+  salva_no(noPai, arqDados);
+  fseek(arqDados, pont + tamanho_no(), SEEK_SET);
+  salva_no(noIrmao, arqDados);
+}
+
 int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
 {
-  int pont;
-  int encontrou = 0;
-
+  int pont, encontrou = 0;
   // Busca a chave no arquivo de dados
   int i = busca(cod_cli, nome_arquivo_metadados, nome_arquivo_dados, &pont, &encontrou);
 
   FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
+  if (!arqDados)
+  {
+    printf("Erro ao abrir arquivo de dados.\n");
+    return -1;
+  }
+
   fseek(arqDados, pont, SEEK_SET);
   No *noExc = le_no(arqDados);
 
@@ -170,45 +264,13 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
     {
       // Caso 2: A chave não está em um nó folha
       // Substitui pela chave sucessora
-      int sucessor_pont = noExc->p[i + 1]; // Pega o ponteiro para o nó à direita da chave
-      fseek(arqDados, sucessor_pont, SEEK_SET);
-      No *no_sucessor = le_no(arqDados);
-
-      while (!eh_folha(no_sucessor))
-      {
-        // Desce até encontrar um nó folha
-        sucessor_pont = no_sucessor->p[0]; // Vai para o primeiro ponteiro
-        fseek(arqDados, sucessor_pont, SEEK_SET);
-        no_sucessor = le_no(arqDados);
-      }
-
-      // Substitui a chave removida pela chave sucessora
-      noExc->clientes[i] = no_sucessor->clientes[0];
-
-      // Remove a chave sucessora do nó folha
-      for (int j = 0; j < no_sucessor->m - 1; j++)
-      {
-        no_sucessor->clientes[j] = no_sucessor->clientes[j + 1];
-      }
-      no_sucessor->clientes[no_sucessor->m - 1] = NULL;
-      no_sucessor->m--;
-
-      // Reposiciona o ponteiro e salva o nó sucessor atualizado
-      fseek(arqDados, sucessor_pont, SEEK_SET);
-      salva_no(no_sucessor, arqDados);
-
-      // Libera a memória do nó sucessor
-      libera_no(no_sucessor);
+      substituiPorSucessor(arqDados, noExc, i);
     }
 
     // Reposiciona o ponteiro antes de salvar o nó modificado
     fseek(arqDados, pont, SEEK_SET);
     salva_no(noExc, arqDados);
 
-    libera_no(noExc);
-
-    fseek(arqDados, pont, SEEK_SET);
-    noExc = le_no(arqDados);
     fseek(arqDados, pont + tamanho_no(), SEEK_SET);
     No *noIrmao = le_no(arqDados);
     if (noExc->m + noIrmao->m >= 2 * D && noExc->m < D && noIrmao != NULL)
@@ -225,72 +287,16 @@ int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
           idxPai = j;
           break;
         }
-      // vetor de clientes de tamanho no + irmao + 1 (pai)
-      Cliente *aux[noExc->m + noIrmao->m + 1];
-      // contador para salvar todos os clientes em aux
-      int k = 0;
-      while (k < noExc->m)
-      {
-        aux[k] = cliente(noExc->clientes[k]->cod_cliente, noExc->clientes[k]->nome);
-        k++;
-      }
-      // contador auxiliar para contar os M elementos do irmao
-      int l = 0;
-      while (l < noIrmao->m)
-      {
-        aux[k] = cliente(noIrmao->clientes[l]->cod_cliente, noIrmao->clientes[l]->nome);
-        k++;
-        l++;
-      }
-      // na última posição do vetor se guarda o cliente do pai
-      aux[k] = cliente(noPai->clientes[idxPai]->cod_cliente, noPai->clientes[idxPai]->nome);
-
-      int j = noExc->m + noIrmao->m;
-      // ordena vetor auxiliar (insertion sort)
-      while (j > 0 && aux[j]->cod_cliente < aux[j - 1]->cod_cliente)
-      {
-        Cliente *temp = aux[j];
-        aux[j] = aux[j - 1];
-        aux[j - 1] = temp;
-        j--;
-      }
-      // redistribuir as chaves
-      // D chaves no nó
-      int cont = 0;
-      for (int a = 0; a < D; a++)
-      {
-        noExc->clientes[a] = cliente(aux[cont]->cod_cliente, aux[cont]->nome);
-        noExc->m = a + 1;
-        cont++;
-      }
-      // D + 1 vai para o pai
-      noPai->clientes[idxPai] = cliente(aux[cont]->cod_cliente, aux[cont]->nome);
-      // restante para o irmão
-      int contM = 0;
-      for (int a = 0; a < k - D; a++)
-      {
-        cont++;
-        noIrmao->clientes[a] = cliente(aux[cont]->cod_cliente, aux[cont]->nome);
-        contM++;
-      }
-      noIrmao->m = contM;
-
-      // salva novo no pai e novo no irmao
-      fseek(arqDados, noExc->pont_pai, SEEK_SET);
-      salva_no(noPai, arqDados);
+      redistribuirNos(arqDados, noExc, noIrmao, noPai, idxPai, pont);
       libera_no(noPai);
-      fseek(arqDados, pont + tamanho_no(), SEEK_SET);
-      salva_no(noIrmao, arqDados);
       libera_no(noIrmao);
     }
     // Reposiciona o ponteiro antes de salvar o nó modificado
     fseek(arqDados, pont, SEEK_SET);
     salva_no(noExc, arqDados);
-
     libera_no(noExc);
   }
 
   fclose(arqDados); // Fecha o arquivo após salvar
-
   return pont;
 }
