@@ -209,57 +209,120 @@ int busca(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados, i
 // }
 
 int esta_cheio(No * no){
-  if(no->m<=(2*D)){
-    return 0;
-  }
-  return 1;
+  return no->m == 2*D;
 }
 
-
-void ordenar_no(No * no){
+void ordenar_no(No *no) {
   Cliente *aux;
-  for(int i = 0; i < no->m; i++){
-    for(int j = i + 1; j < no->m; j++){
-      if(no->clientes[j]->cod_cliente < no->clientes[i]->cod_cliente){
+  int aux_p;
+  for (int i = 0; i < no->m; i++) {
+    for (int j = i + 1; j < no->m; j++) {
+      if (no->clientes[j]->cod_cliente < no->clientes[i]->cod_cliente) {
         aux = no->clientes[j];
         no->clientes[j] = no->clientes[i];
         no->clientes[i] = aux;
+
+        // Manter os ponteiros sincronizados
+        aux_p = no->p[j + 1];
+        no->p[j + 1] = no->p[i + 1];
+        no->p[i + 1] = aux_p;
       }
     }
   }
 }
+/* No* verica_nos_pai_cheio(No *no) {
+  if(no->pont_pai == NULL) return NULL; // chegou na raiz
+  if (esta_cheio) verica_nos_pai_cheio(no->pont_pai); //verifica se o pai está cheio
+  else return no; // se não estiver cheio retorna esse no, que é o que vai ser feito o particionamento
+}
+ */
 
 
-int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
-{
+int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados) {
   int pontChave;
   int encontrou = 0;
   Cliente *novo_cliente = cliente(cod_cli, nome_cli);
 
-  int i = busca(cod_cli,nome_arquivo_metadados,nome_arquivo_dados,&pontChave, &encontrou);
+  int res_busca = busca(cod_cli, nome_arquivo_metadados, nome_arquivo_dados, &pontChave, &encontrou);
 
-  if(encontrou){//caso o dado já exista na árvore
+  if (encontrou) {  // Caso o dado já exista na árvore
     return -1;
   }
- else{
-      FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
-      if(arqDados == NULL){
-          return-1;
-      }
-      fseek(arqDados, pontChave, SEEK_SET);
-      No *no = le_no(arqDados);
-      if(!esta_cheio(no)){
-        no->clientes[no->m] = novo_cliente;
-        no->m++;
-        ordenar_no(no);
-        fseek(arqDados, pontChave, SEEK_SET);
-        salva_no(no, arqDados);
-        fclose(arqDados);
-        return pontChave;
-      }
+
+  FILE *arqDados = fopen(nome_arquivo_dados, "rb+");
+  if (arqDados == NULL) {
+    return -1;
   }
 
-  return -1;
+  fseek(arqDados, pontChave, SEEK_SET);
+  No *no_atual = le_no(arqDados);
+  
+  if (!esta_cheio(no_atual)) {
+    no_atual->clientes[no_atual->m] = novo_cliente;
+    no_atual->m++;
+    ordenar_no(no_atual);
+    fseek(arqDados, pontChave, SEEK_SET);
+    salva_no(no_atual, arqDados);
+    fclose(arqDados);
+    return pontChave;
+  }
+  // Está cheio, deve-se fazer o particionamento
+  No *novo_no = no(0, 0);
+  int pont_chave_no_atual = pontChave;  // Guarda chave do nó atual
+  int meio = (no_atual->m / 2) - 1;     // Posição do meio do nó
+  Cliente *chave_promovida = no_atual->clientes[meio];  // Chave a ser promovida
+
+  // Transferir as últimas chaves da página atual para a nova página
+  int i;
+  for (i = meio + 1; i < no_atual->m; i++) {
+    novo_no->clientes[i - (meio + 1)] = no_atual->clientes[i];
+    novo_no->p[i - (meio + 1)] = no_atual->p[i];
+    no_atual->clientes[i] = NULL;
+    no_atual->p[i] = -1;
+  }
+  // define o tamanho do novo no
+  novo_no->m = no_atual->m - (meio + 1);
+
+  // Inserir o novo cliente no nó atual
+  no_atual->clientes[meio] = novo_cliente;
+  no_atual->p[meio] = -1;
+  // Modificar o tamanho da página atual
+  no_atual->m = meio+1;
+  ordenar_no(no_atual);
+  // Atualizar o ponteiro do novo nó para um endereço correto
+  Metadados *m_dados = le_arq_metadados(nome_arquivo_metadados);
+  int novo_no_pos = m_dados->pont_prox_no_livre;  // Nova função para encontrar espaço
+  m_dados->pont_prox_no_livre++;
+  salva_arq_metadados(nome_arquivo_metadados,m_dados);
+  printf("\nNova posicao: %d", novo_no_pos);
+
+  // Busca o pai da chave promovida
+  
+  fseek(arqDados, no_atual->pont_pai, SEEK_SET);
+  No *no_pai = le_no(arqDados);
+  
+
+  // Inserir a chave promovida no nó pai
+  no_pai->clientes[no_pai->m] = chave_promovida;
+  no_pai->p[no_pai->m+1] = novo_no_pos;  // Atualizar ponteiro para o novo nó
+  no_pai->m++;
+  ordenar_no(no_pai);
+
+  // Salvar nó pai atualizado
+  fseek(arqDados, no_atual->pont_pai, SEEK_SET);
+  salva_no(no_pai, arqDados);
+
+  // Salvar nó atual atualizado
+  fseek(arqDados, pont_chave_no_atual, SEEK_SET);
+  salva_no(no_atual, arqDados);
+
+  // Salvar novo nó
+  fseek(arqDados, novo_no_pos, SEEK_SET);
+  salva_no(novo_no, arqDados);
+  
+  fclose(arqDados);
+  
+  return pontChave;
 }
 
 int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
