@@ -197,10 +197,12 @@ Cliente* divide_no(No *p, No *q, int meio_p, Cliente *novo_cliente) {
   -> a nova raíz é um nó que guarda apenas a chave promovida
   -> retorna o último valor inserido na variável "posicao_livre"
 */
-int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FILE *arq_dados, char *nome_arquivo_metadados, Cliente *chave_promovida, Cliente *chave_promovida_anterior, int end_direita) {
+void insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FILE *arq_dados, char *nome_arquivo_metadados, Cliente *chave_promovida, Cliente *chave_promovida_anterior, int end_direita) {
   No *nova_raiz = no(1,-1);
   nova_raiz->clientes[0] = chave_promovida;
-  
+  // Caso a chave que foi promovida anteriormente, 
+  // foi promovida de novo é inserido no nó q no irmão esquerdo
+  // o ponteiro da direita da nova raíz
   if(chave_promovida_anterior != NULL && chave_promovida_anterior->cod_cliente == chave_promovida->cod_cliente) {
     q->p[0] = end_direita;
   }
@@ -234,8 +236,6 @@ int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FI
   salva_arq_metadados(nome_arquivo_metadados,m_dados);
 
   fclose(arq_dados);
-
-  return posicao_livre;
 }
 
 
@@ -243,7 +243,7 @@ int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FI
 /* 
   -> Essa função é responsável por particionar o nó
   -> Ela é recursiva, isso serve para casos em que os nós pais estão cheios, então são particionados também
-  -> Retorna o ponteiro que aponta para onde foi inserido o novo nó
+  -> Retorna o ponteiro que aponta para onde foi inserido o novo registro
 */
 int particionamento(No *p, int pont_chave, Cliente *novo_cliente, char *nome_arquivo_metadados, FILE *arq_dados, Cliente *chave_promovida, int *end_direita) {
   No *q = no(0, 0);
@@ -252,18 +252,17 @@ int particionamento(No *p, int pont_chave, Cliente *novo_cliente, char *nome_arq
   Metadados *m_dados;
   int posicao_livre;
 
-
   Cliente *chave_promovida_anterior = chave_promovida; // guarda a chave promovida anteriormente
   chave_promovida = divide_no(p, q, meio, novo_cliente); // divide e recebe a nova chave promocida
   
-
+  // Verifica se o nó pai não é raiz
   if(p->pont_pai != -1) {
     // Atualizar o ponteiro do novo nó para um endereço correto
     m_dados = le_arq_metadados(nome_arquivo_metadados);
     posicao_livre = m_dados->pont_prox_no_livre; 
 
     m_dados->pont_prox_no_livre+=tamanho_no();
-    *end_direita = posicao_livre;
+    *end_direita = posicao_livre; // conserva o ponteiro da direita da nova raíz (caso tenha)
     
     salva_arq_metadados(nome_arquivo_metadados,m_dados);
     
@@ -310,8 +309,10 @@ int particionamento(No *p, int pont_chave, Cliente *novo_cliente, char *nome_arq
   }
 
   // caso o nó seja raíz cheia
-  posicao_livre = insere_em_raiz_cheia(p, q, m_dados, posicao_livre, arq_dados, nome_arquivo_metadados, chave_promovida, chave_promovida_anterior, *end_direita);
+  insere_em_raiz_cheia(p, q, m_dados, posicao_livre, arq_dados, nome_arquivo_metadados, chave_promovida, chave_promovida_anterior, *end_direita);
+  return pont_chave;
 }
+
 
 int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados) {
   int pontChave;
@@ -344,7 +345,7 @@ int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome
   }
   Cliente *chave_promovida = NULL;
   int end_direita = -1;
-  particionamento(no_atual, pontChave, novo_cliente, nome_arquivo_metadados, arqDados, chave_promovida, &end_direita);
+  pontChave = particionamento(no_atual, pontChave, novo_cliente, nome_arquivo_metadados, arqDados, chave_promovida, &end_direita);
  
   return pontChave;
 }
