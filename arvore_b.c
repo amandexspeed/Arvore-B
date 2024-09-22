@@ -11,6 +11,8 @@
 #include "metadados.h"
 #include "lista_nos.h"
 
+/* Começo métodos utilizados na exclusão */
+
 // Retorna 0 se nó não for folha e 1 se for.
 int eh_folha(No *no);
 // Busca binária em um nó
@@ -26,6 +28,64 @@ void insertionSort(Cliente **aux, int tamanho);
 void balancearArvore(FILE *arqDados, No *noExc, int pont);
 void concatenarNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont);
 int encontrarIndicePai(No *pai, int pont);
+/* Fim métodos utilizados na exclusão */
+
+/* Começo métodos utilizados na inserção */
+
+// verifica se o nó está cheio
+int esta_cheio(No * no);
+// Ordena o nó com bubblesort
+void ordenar_no(No *no);
+
+/* Divide nó */
+/* 
+  -> Função responsável por dividir o nó
+  -> o nó P recebe fica com uma posição a mais
+  -> depois é ordenado
+  -> todas as chaves depois do meio são passadas para o nó Q
+  -> a chave do meio é removida do nó P e retornada, pois será promovida ao nó pai
+*/
+Cliente* divide_no(No *p, No *q, int meio_p, Cliente *novo_cliente);
+
+/* Insere na raíz cheia */
+/* 
+  -> Função responsável por inserir dado em uma raíz que está cheia
+  -> é executada depois que é feita a partição
+  -> nó P fica com as D primeiras chaves
+  -> nó Q fica com as D últimas
+  -> a chave D+1 é promovida, e é inserida na nova raíz
+  -> a nova raíz é um nó que guarda apenas a chave promovida
+  -> retorna o último valor inserido na variável "posicao_livre"
+*/
+int insere_em_raiz_cheia(
+  No *p, 
+  No *q, 
+  Metadados *m_dados,
+  int posicao_livre, 
+  FILE *arq_dados, 
+  char *nome_arquivo_metadados, 
+  Cliente *chave_promovida, 
+  Cliente *chave_promovida_anterior, 
+  int end_direita
+);
+
+/* Particionamento */
+/* 
+  -> Essa função é responsável por particionar o nó
+  -> Ela é recursiva, isso serve para casos em que os nós pais estão cheios, então são particionados também
+  -> Retorna o ponteiro que aponta para onde foi inserido o novo nó
+*/
+int particionamento(
+  No *p, 
+  int pont_chave, 
+  Cliente *novo_cliente, 
+  char *nome_arquivo_metadados, 
+  FILE *arq_dados, 
+  Cliente *chave_promovida, 
+  int *end_direita
+);
+
+/* Fim métodos utilizados na inserção */
 
 int eh_folha(No *no)
 {
@@ -136,7 +196,6 @@ int busca(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados, i
   return 0;
 }
 
-
 int esta_cheio(No * no){
   return no->m == 2*D;
 }
@@ -160,14 +219,6 @@ void ordenar_no(No *no) {
   }
 }
 
-/* Divide nó */
-/* 
-  -> Função responsável por dividir o nó
-  -> o nó P recebe fica com uma posição a mais
-  -> depois é ordenado
-  -> todas as chaves depois do meio são passadas para o nó Q
-  -> a chave do meio é removida do nó P e retornada, pois será promovida ao nó pai
-*/
 Cliente* divide_no(No *p, No *q, int meio_p, Cliente *novo_cliente) {
   p->clientes[p->m] = novo_cliente;  // o no atual recebe um nó além da sua capacidade temporariamente
   p->p[p->m+1] = -1; // define o endereço do ponteiro da direita da chave que foi inserida como -1
@@ -198,17 +249,17 @@ Cliente* divide_no(No *p, No *q, int meio_p, Cliente *novo_cliente) {
   return chave_promovida;
 }
 
-/* Insere na raíz cheia */
-/* 
-  -> Função responsável por inserir dado em uma raíz que está cheia
-  -> é executada depois que é feita a partição
-  -> nó P fica com as D primeiras chaves
-  -> nó Q fica com as D últimas
-  -> a chave D+1 é promovida, e é inserida na nova raíz
-  -> a nova raíz é um nó que guarda apenas a chave promovida
-  -> retorna o último valor inserido na variável "posicao_livre"
-*/
-int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FILE *arq_dados, char *nome_arquivo_metadados, Cliente *chave_promovida, Cliente *chave_promovida_anterior, int end_direita) {
+int insere_em_raiz_cheia(
+  No *p, 
+  No *q, 
+  Metadados *m_dados, 
+  int posicao_livre, 
+  FILE *arq_dados, 
+  char *nome_arquivo_metadados, 
+  Cliente *chave_promovida, 
+  Cliente *chave_promovida_anterior, 
+  int end_direita
+) {
   No *nova_raiz = no(1,-1);
   nova_raiz->clientes[0] = chave_promovida;
   
@@ -249,14 +300,15 @@ int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FI
   return posicao_livre;
 }
 
-
-/* Particionamento */
-/* 
-  -> Essa função é responsável por particionar o nó
-  -> Ela é recursiva, isso serve para casos em que os nós pais estão cheios, então são particionados também
-  -> Retorna o ponteiro que aponta para onde foi inserido o novo nó
-*/
-int particionamento(No *p, int pont_chave, Cliente *novo_cliente, char *nome_arquivo_metadados, FILE *arq_dados, Cliente *chave_promovida, int *end_direita) {
+int particionamento(
+  No *p, 
+  int pont_chave, 
+  Cliente *novo_cliente, 
+  char *nome_arquivo_metadados, 
+  FILE *arq_dados, 
+  Cliente *chave_promovida, 
+  int *end_direita
+) {
   No *q = no(0, 0);
   int pont_chave_no_atual = pont_chave;  // Guarda chave do nó atual
   int meio = ((p->m+1) / 2);     // Posição do meio do nó
