@@ -349,8 +349,3 @@ int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome
  
   return pontChave;
 }
-
-int exclui(int cod_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados)
-{
-  
-}
