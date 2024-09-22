@@ -276,6 +276,43 @@ Cliente* particiona(No *p, No *q, int meio_p, Cliente *novo_cliente) {
   return chave_promovida;
 }
 
+int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FILE *arq_dados, char *nome_arquivo_metadados, Cliente *chave_promovida) {
+  No *nova_raiz = no(1,-1);
+  nova_raiz->clientes[0] = chave_promovida;
+
+  m_dados = le_arq_metadados(nome_arquivo_metadados);
+  posicao_livre = m_dados->pont_prox_no_livre; // pega a proxima posição livre pra inserir o nó q
+  m_dados->pont_prox_no_livre+=tamanho_no(); // calcular a próxima posição livre, posteriormente será a nova raíz
+
+  // insere os ponteiros que vão apontar pro filho esquerdo e filho direito da nova raíz
+  nova_raiz->p[0] = m_dados->pont_raiz;
+  nova_raiz->p[1] = posicao_livre;
+  
+  // nó p e q no campo pont_pai apontando para a nova raíz
+  p->pont_pai = m_dados->pont_prox_no_livre;
+  q->pont_pai = m_dados->pont_prox_no_livre;
+
+  // salva nó da esquerda
+  fseek(arq_dados, m_dados->pont_raiz, SEEK_SET);
+  salva_no(p, arq_dados);
+
+  // salva nó da direita
+  fseek(arq_dados, posicao_livre, SEEK_SET);
+  salva_no(q, arq_dados);
+
+  // salva nó raiz
+  fseek(arq_dados, m_dados->pont_prox_no_livre, SEEK_SET);
+  salva_no(nova_raiz, arq_dados);
+
+  m_dados->pont_raiz = m_dados->pont_prox_no_livre; // insere o novo endereço da nova raíz
+  m_dados->pont_prox_no_livre+=tamanho_no(); // calcular o próximo nó livre
+  salva_arq_metadados(nome_arquivo_metadados,m_dados);
+
+  fclose(arq_dados);
+
+  return posicao_livre;
+}
+
 int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome_arquivo_dados) {
   int pontChave;
   int encontrou = 0;
@@ -304,42 +341,51 @@ int insere(int cod_cli, char *nome_cli, char *nome_arquivo_metadados, char *nome
     fclose(arqDados);
     return pontChave;
   }
+
   // Está cheio, deve-se fazer o particionamento
   No *novo_no = no(0, 0);
   int pont_chave_no_atual = pontChave;  // Guarda chave do nó atual
   int meio = ((no_atual->m+1) / 2);     // Posição do meio do nó
-
+  Metadados *m_dados;
+  int posicao_livre;
   Cliente *chave_promovida = particiona(no_atual, novo_no, meio, novo_cliente);
 
-  // Atualizar o ponteiro do novo nó para um endereço correto
-  Metadados *m_dados = le_arq_metadados(nome_arquivo_metadados);
-  int novo_no_pos = m_dados->pont_prox_no_livre;  // Nova função para encontrar espaço
-  m_dados->pont_prox_no_livre++;
-  salva_arq_metadados(nome_arquivo_metadados,m_dados);
-  
-  // Busca o pai da chave promovida
-  fseek(arqDados, no_atual->pont_pai, SEEK_SET);
-  No *no_pai = le_no(arqDados);
-  
-  // Inserir a chave promovida no nó pai
-  no_pai->clientes[no_pai->m] = chave_promovida;
-  no_pai->p[no_pai->m+1] = novo_no_pos;  // Atualizar ponteiro para o novo nó
-  no_pai->m++;
-  ordenar_no(no_pai);
+  if(no_atual->pont_pai != -1) {
+    // Atualizar o ponteiro do novo nó para um endereço correto
+    m_dados = le_arq_metadados(nome_arquivo_metadados);
+    posicao_livre = m_dados->pont_prox_no_livre; 
+    m_dados->pont_prox_no_livre+=tamanho_no();
+    salva_arq_metadados(nome_arquivo_metadados,m_dados);
+    
+    // Busca o pai da chave promovida
+    fseek(arqDados, no_atual->pont_pai, SEEK_SET);
+    No *no_pai = le_no(arqDados);
+    
+    // Inserir a chave promovida no nó pai
+    no_pai->clientes[no_pai->m] = chave_promovida;
+    no_pai->p[no_pai->m+1] = posicao_livre;  // Atualizar ponteiro para o novo nó
+    no_pai->m++;
+    ordenar_no(no_pai);
 
-  // Salvar nó pai atualizado
-  fseek(arqDados, no_atual->pont_pai, SEEK_SET);
-  salva_no(no_pai, arqDados);
+    // Salvar nó pai atualizado
+    fseek(arqDados, no_atual->pont_pai, SEEK_SET);
+    salva_no(no_pai, arqDados);
 
-  // Salvar nó atual atualizado
-  fseek(arqDados, pont_chave_no_atual, SEEK_SET);
-  salva_no(no_atual, arqDados);
+    // Salvar nó atual atualizado
+    fseek(arqDados, pont_chave_no_atual, SEEK_SET);
+    salva_no(no_atual, arqDados);
 
-  // Salvar novo nó
-  fseek(arqDados, novo_no_pos, SEEK_SET);
-  salva_no(novo_no, arqDados);
-  
-  fclose(arqDados);
+    // Salvar novo nó
+    fseek(arqDados, posicao_livre, SEEK_SET);
+    salva_no(novo_no, arqDados);
+    
+    fclose(arqDados);
+    
+    return pontChave;
+  }
+
+  // caso o no seja raíz
+  posicao_livre = insere_em_raiz_cheia(no_atual, novo_no, m_dados, posicao_livre, arqDados, nome_arquivo_metadados, chave_promovida);
   
   return pontChave;
 }
