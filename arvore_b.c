@@ -275,7 +275,16 @@ Cliente* particiona(No *p, No *q, int meio_p, Cliente *novo_cliente) {
 
   return chave_promovida;
 }
-
+/* Insere na raíz cheia */
+/* 
+  -> Função responsável por inserir dado em uma raíz que está cheia
+  -> é executada depois que é feita a partição
+  -> nó P fica com as D primeiras chaves
+  -> nó Q fica com as D últimas
+  -> a chave D+1 é promovida, e é inserida na nova raíz
+  -> a nova raíz é um nó que guarda apenas a chave promovida
+  -> retorna o último valor inserido na variável "posicao_livre"
+*/
 int insere_em_raiz_cheia(No *p, No *q, Metadados *m_dados, int posicao_livre, FILE *arq_dados, char *nome_arquivo_metadados, Cliente *chave_promovida) {
   No *nova_raiz = no(1,-1);
   nova_raiz->clientes[0] = chave_promovida;
