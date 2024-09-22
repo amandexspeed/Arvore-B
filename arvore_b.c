@@ -163,8 +163,6 @@ void substituiPorSucessor(FILE *arq, No *no, int index)
   do
   {
     fseek(arq, sucessor_pont, SEEK_SET);
-    if (no_sucessor)
-      libera_no(no_sucessor);
     no_sucessor = le_no(arq);
     if (!eh_folha(no_sucessor))
     {
@@ -175,8 +173,6 @@ void substituiPorSucessor(FILE *arq, No *no, int index)
   no->clientes[index] = no_sucessor->clientes[0];
   removeNoFolha(arq, no_sucessor, 0, sucessor_pont);
 
-  fseek(arq, sucessor_pont, SEEK_SET);
-  salva_no(no_sucessor, arq);
   libera_no(no_sucessor);
 }
 
@@ -290,13 +286,9 @@ void concatenarNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont)
   }
   no->m += irmao->m;
 
-  if (no->m == 2 * D)
-    libera_no(irmao);
-
   no->clientes[no->m] = cliente(pai->clientes[idxPai]->cod_cliente, pai->clientes[idxPai]->nome);
   no->m++;
 
-  int contaMnoPai = 0;
   for (int a = idxPai; a < pai->m + 1; a++)
   {
     pai->clientes[a] = pai->clientes[a + 1];
@@ -304,10 +296,8 @@ void concatenarNos(FILE *arq, No *no, No *irmao, No *pai, int idxPai, int pont)
     {
       pai->p[a] = pai->p[a + 1];
     }
-    if (pai->clientes[a] != NULL)
-      contaMnoPai++;
   }
-  pai->m = contaMnoPai;
+  pai->m--;
 
   insertionSort(no->clientes, no->m - 1);
 
